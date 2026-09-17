@@ -2,6 +2,11 @@ const $=id=>document.getElementById(id), labels={intro:'前奏',verse:'主歌',c
 let songs=[],used=new Set(),current=null,round=0,editing=null,generation=0,source=null,ctx=null,ticker=null,quizQueue=[],quizFinished=false;
 try{songs=JSON.parse(localStorage.getItem('guessSongs')||'[]')}catch{}
 function persist(){try{localStorage.setItem('guessSongs',JSON.stringify(songs))}catch{alert('瀏覽器無法保存設定，請匯出題庫備份。')}}
+const audioDb=()=>new Promise((resolve,reject)=>{const request=indexedDB.open('guessSongAudio',1);request.onupgradeneeded=()=>request.result.createObjectStore('files',{keyPath:'id'});request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+async function saveAudio(id,file){const db=await audioDb();return new Promise((resolve,reject)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').put({id,file,name:file.name,type:file.type,lastModified:file.lastModified});tx.oncomplete=()=>{db.close();resolve()};tx.onerror=()=>{db.close();reject(tx.error)};tx.onabort=()=>{db.close();reject(tx.error)}})}
+async function removeAudio(id){try{const db=await audioDb();const tx=db.transaction('files','readwrite');tx.objectStore('files').delete(id);tx.oncomplete=()=>db.close()}catch{}}
+async function restoreAudio(){if(!('indexedDB'in window))return;try{const db=await audioDb();const records=await new Promise((resolve,reject)=>{const request=db.transaction('files').objectStore('files').getAll();request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});db.close();for(const record of records){if(record.file&&songs.some(song=>song.id===record.id)){if(urls.has(record.id))URL.revokeObjectURL(urls.get(record.id));urls.set(record.id,URL.createObjectURL(record.file))}}if(records.length){render();$('importStatus').textContent='已自動還原 '+urls.size+' 首儲存在此裝置的歌曲。'}}catch{}}
+async function requestDurableStorage(){try{if(navigator.storage?.persist)await navigator.storage.persist()}catch{}}
 function tab(lib){stop();$('game').hidden=lib;$('library').hidden=!lib;$('playTab').classList.toggle('active',!lib);$('libTab').classList.toggle('active',lib)}
 $('playTab').onclick=()=>tab(false);$('libTab').onclick=()=>tab(true);
 for(const id of ['importTop','importLib','importEmpty'])$(id).onclick=()=>$('files').click();
@@ -87,7 +92,7 @@ function counts(){
  const left=quizFinished?0:(quizQueue.length?quizQueue.length:pool.length);
  $('remaining').textContent=left+' 首可抽';
 }
-function render(){counts();$('songList').replaceChildren();$('empty').hidden=!!songs.length;for(const s of songs){const row=document.createElement('div');row.className='song';const info=document.createElement('div');info.className='info';const b=document.createElement('b');b.textContent=s.title;const p=document.createElement('p');p.textContent=(s.artist||'未填歌手')+' · '+(s.era||'未分類')+' · '+(s.kind||'未分類');const badge=document.createElement('span');badge.className='badge';badge.textContent=urls.has(s.id)?'● 已就緒':'○ 請重新匯入音樂';info.append(b,p,badge);if(s.analysis_status==='unverified_candidates'){const note=document.createElement('p');note.textContent='自動分析候選 · 待試聽確認';info.append(note)}const edit=document.createElement('button');edit.textContent='編輯';edit.onclick=()=>openEdit(s);const del=document.createElement('button');del.textContent='移除';del.className='danger';del.onclick=()=>{if(confirm('移除「'+s.title+'」的題庫設定？本機音樂不會刪除。')){stop();if(urls.has(s.id))URL.revokeObjectURL(urls.get(s.id));urls.delete(s.id);songs=songs.filter(x=>x.id!==s.id);quizQueue=quizQueue.filter(x=>x.id!==s.id);persist();render()}};const auto=document.createElement('button');auto.textContent='分析';auto.disabled=!urls.has(s.id);auto.onclick=()=>runAnalysis([s]);row.append(info,auto,edit,del);$('songList').append(row)}}
+function render(){counts();$('songList').replaceChildren();$('empty').hidden=!!songs.length;for(const s of songs){const row=document.createElement('div');row.className='song';const info=document.createElement('div');info.className='info';const b=document.createElement('b');b.textContent=s.title;const p=document.createElement('p');p.textContent=(s.artist||'未填歌手')+' · '+(s.era||'未分類')+' · '+(s.kind||'未分類');const badge=document.createElement('span');badge.className='badge';badge.textContent=urls.has(s.id)?'● 已就緒':'○ 尚未儲存音樂';info.append(b,p,badge);if(s.analysis_status==='unverified_candidates'){const note=document.createElement('p');note.textContent='自動分析候選 · 待試聽確認';info.append(note)}const edit=document.createElement('button');edit.textContent='編輯';edit.onclick=()=>openEdit(s);const del=document.createElement('button');del.textContent='移除';del.className='danger';del.onclick=()=>{if(confirm('移除「'+s.title+'」的題庫與此瀏覽器內保存的音樂？')){stop();if(urls.has(s.id))URL.revokeObjectURL(urls.get(s.id));urls.delete(s.id);removeAudio(s.id);songs=songs.filter(x=>x.id!==s.id);quizQueue=quizQueue.filter(x=>x.id!==s.id);persist();render()}};const auto=document.createElement('button');auto.textContent='分析';auto.disabled=!urls.has(s.id);auto.onclick=()=>runAnalysis([s]);row.append(info,auto,edit,del);$('songList').append(row)}}
 function folderCategories(path){
  const result={era:'',kind:'',sourceGroup:''};
  const eras={'華語經典':'華語經典','華語金曲':'華語經典','华语经典':'華語經典','華語流行':'華語流行','华语流行':'華語流行','台語':'台語歌','臺語':'台語歌','台语':'台語歌'};
@@ -97,8 +102,9 @@ function folderCategories(path){
  if(['男歌手','女歌手','團體'].includes(result.kind)){const last=folders.at(-1)||'',compact=last.replace(/\s/g,'');const recognized=[...Object.keys(eras),...Object.keys(kinds)].some(name=>compact.includes(name));if(last&&!recognized)result.sourceGroup=last.trim()}
  return result;
 }
-function importSongs(e){
+async function importSongs(e){
  stop();quizQueue=[];let added=0,classified=0,unmatched=0;
+ await requestDurableStorage();let saved=0,saveFailed=0;
  for(const f of e.target.files){
   if(!/\.(mp3|m4a|wav|ogg)$/i.test(f.name))continue;
   const id=f.name+'::'+f.size;
@@ -111,10 +117,11 @@ function importSongs(e){
   if(cats.kind)song.kind=cats.kind;
   if(cats.sourceGroup)song.sourceGroup=cats.sourceGroup;
   if(cats.era||cats.kind)classified++;else unmatched++;
+  try{await saveAudio(id,f);saved++}catch{saveFailed++}
   added++;
  }
  persist();render();tab(true);e.target.value='';
- $('importStatus').textContent=added?'已匯入 '+added+' 首；'+classified+' 首已依資料夾分類。'+(unmatched?'另有 '+unmatched+' 首未辨識資料夾分類，已保留原設定（新歌為未分類）。':''): '資料夾內沒有支援的音樂檔，請選取 MP3／M4A／WAV／OGG。';
+ $('importStatus').textContent=added?'已匯入 '+added+' 首，其中 '+saved+' 首已儲存在此裝置，重開網頁會自動還原。'+(saveFailed?' 有 '+saveFailed+' 首因儲存空間不足未能保存。':'')+' '+classified+' 首已依資料夾分類。'+(unmatched?'另有 '+unmatched+' 首未辨識資料夾分類，已保留原設定（新歌為未分類）。':''): '資料夾內沒有支援的音樂檔，請選取 MP3／M4A／WAV／OGG。';
 }
 $('files').onchange=importSongs;$('folderFiles').onchange=importSongs;
 $('importFolder').onclick=()=>{if(!('webkitdirectory' in $('folderFiles'))){$('importStatus').textContent='此瀏覽器不支援資料夾匯入，請使用電腦版 Chrome 或 Edge，或使用「匯入 MP3」。';return}$('folderFiles').click()};
@@ -133,5 +140,5 @@ $('export').onclick=()=>{try{$('exportText').value=JSON.stringify({version:1,son
 $('downloadSettings').onclick=()=>{try{if(exportUrl)URL.revokeObjectURL(exportUrl);exportUrl=URL.createObjectURL(new Blob([$('exportText').value],{type:'application/json;charset=utf-8'}));const a=document.createElement('a');a.href=exportUrl;a.download='song-settings.json';document.body.append(a);a.click();a.remove();$('exportMessage').textContent='已送出下載請求，請查看瀏覽器下載清單。若沒有檔案，請按「複製完整設定」。'}catch(err){$('exportMessage').textContent='下載無法啟動，請複製下方完整設定。'}};
 $('copySettings').onclick=async()=>{try{await navigator.clipboard.writeText($('exportText').value);$('exportMessage').textContent='已複製完整設定，可貼到記事本並另存為 song-settings.json。'}catch{const box=$('exportText');box.focus();box.select();$('exportMessage').textContent='請按 Ctrl+C（手機請長按並複製），文字已全選。'}};
 $('load').onclick=()=>$('settingsFile').click();
-$('settingsFile').onchange=async e=>{try{const data=JSON.parse(await e.target.files[0].text());if(data.version!==1||!Array.isArray(data.songs))throw Error();const clean=data.songs.map(s=>{if(typeof s.id!=='string'||typeof s.title!=='string'||typeof s.file!=='string'||!s.marks)throw Error();const marks={};for(const k of Object.keys(labels)){const v=s.marks[k];if(v!==null&&(!Number.isFinite(v)||v<0))throw Error();marks[k]=v}return{id:s.id,file:s.file,title:s.title,artist:typeof s.artist==='string'?s.artist:'',era:['華語經典','華語流行','台語歌'].includes(s.era)?s.era:'',kind:['男歌手','女歌手','團體','抖音神曲','嘻哈金曲','對唱組合'].includes(s.kind)?s.kind:'',sourceGroup:typeof s.sourceGroup==='string'?s.sourceGroup:'',marks,chorusSpoiler:s.chorusSpoiler===true,analysis_status:s.analysis_status==='unverified_candidates'?'unverified_candidates':undefined}});stop();quizQueue=[];quizFinished=false;for(const s of clean){const i=songs.findIndex(x=>x.id===s.id);if(i<0)songs.push(s);else songs[i]=s}persist();render();alert('題庫設定已載入。請重新選取對應的本機音樂。')}catch{alert('設定檔格式不正確，請選取從本 App 匯出的 JSON。')}e.target.value=''};
-render();renderTeams();
+$('settingsFile').onchange=async e=>{try{const data=JSON.parse(await e.target.files[0].text());if(data.version!==1||!Array.isArray(data.songs))throw Error();const clean=data.songs.map(s=>{if(typeof s.id!=='string'||typeof s.title!=='string'||typeof s.file!=='string'||!s.marks)throw Error();const marks={};for(const k of Object.keys(labels)){const v=s.marks[k];if(v!==null&&(!Number.isFinite(v)||v<0))throw Error();marks[k]=v}return{id:s.id,file:s.file,title:s.title,artist:typeof s.artist==='string'?s.artist:'',era:['華語經典','華語流行','台語歌'].includes(s.era)?s.era:'',kind:['男歌手','女歌手','團體','抖音神曲','嘻哈金曲','對唱組合'].includes(s.kind)?s.kind:'',sourceGroup:typeof s.sourceGroup==='string'?s.sourceGroup:'',marks,chorusSpoiler:s.chorusSpoiler===true,analysis_status:s.analysis_status==='unverified_candidates'?'unverified_candidates':undefined}});stop();quizQueue=[];quizFinished=false;for(const s of clean){const i=songs.findIndex(x=>x.id===s.id);if(i<0)songs.push(s);else songs[i]=s}persist();await restoreAudio();render();alert('題庫設定已載入。已保存於此裝置的音樂會自動配對；只有尚未保存的歌曲才需要匯入。')}catch{alert('設定檔格式不正確，請選取從本 App 匯出的 JSON。')}e.target.value=''};
+render();renderTeams();restoreAudio();
