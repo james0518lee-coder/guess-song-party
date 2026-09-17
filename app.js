@@ -29,6 +29,7 @@ function packName(){return $('pack')?.value||'random'}
 function songPackMatch(s,pack=packName()){
  if(pack==='random')return true;
  if(pack==='gold')return s.era==='華語經典';
+ if(pack==='new')return s.era==='華語新歌';
  if(pack==='pop')return s.era==='華語流行';
  if(pack==='male')return s.kind==='男歌手';
  if(pack==='female')return s.kind==='女歌手';
@@ -40,7 +41,7 @@ function songPackMatch(s,pack=packName()){
 }
 function groupKey(s,pack=packName()){
  if(pack==='random')return s.kind||s.era||s.artist||'未分類';
- if(pack==='gold'||pack==='pop')return s.kind||s.artist||'未分類';
+ if(pack==='gold'||pack==='pop'||pack==='new')return s.kind||s.artist||'未分類';
  return s.artist||s.era||'未分類';
 }
 function availableSongs(pack=packName()){return songs.filter(s=>urls.has(s.id)&&songPackMatch(s,pack)&&validMarks(s).length)}
@@ -95,7 +96,7 @@ function counts(){
 function render(){counts();$('songList').replaceChildren();$('empty').hidden=!!songs.length;for(const s of songs){const row=document.createElement('div');row.className='song';const info=document.createElement('div');info.className='info';const b=document.createElement('b');b.textContent=s.title;const p=document.createElement('p');p.textContent=(s.artist||'未填歌手')+' · '+(s.era||'未分類')+' · '+(s.kind||'未分類');const badge=document.createElement('span');badge.className='badge';badge.textContent=urls.has(s.id)?'● 已就緒':'○ 尚未儲存音樂';info.append(b,p,badge);if(s.analysis_status==='unverified_candidates'){const note=document.createElement('p');note.textContent='自動分析候選 · 待試聽確認';info.append(note)}const edit=document.createElement('button');edit.textContent='編輯';edit.onclick=()=>openEdit(s);const del=document.createElement('button');del.textContent='移除';del.className='danger';del.onclick=()=>{if(confirm('移除「'+s.title+'」的題庫與此瀏覽器內保存的音樂？')){stop();if(urls.has(s.id))URL.revokeObjectURL(urls.get(s.id));urls.delete(s.id);removeAudio(s.id);songs=songs.filter(x=>x.id!==s.id);quizQueue=quizQueue.filter(x=>x.id!==s.id);persist();render()}};const auto=document.createElement('button');auto.textContent='分析';auto.disabled=!urls.has(s.id);auto.onclick=()=>runAnalysis([s]);row.append(info,auto,edit,del);$('songList').append(row)}}
 function folderCategories(path){
  const result={era:'',kind:'',sourceGroup:''};
- const eras={'華語經典':'華語經典','華語金曲':'華語經典','华语经典':'華語經典','華語流行':'華語流行','华语流行':'華語流行','台語':'台語歌','臺語':'台語歌','台语':'台語歌'};
+ const eras={'華語經典':'華語經典','華語金曲':'華語經典','华语经典':'華語經典','華語新歌':'華語新歌','华语新歌':'華語新歌','華語流行':'華語流行','华语流行':'華語流行','台語':'台語歌','臺語':'台語歌','台语':'台語歌'};
  const kinds={'男歌手':'男歌手','女歌手':'女歌手','團體':'團體','团体':'團體','抖音神曲':'抖音神曲','嘻哈金曲':'嘻哈金曲','嘻哈':'嘻哈金曲','對唱組合':'對唱組合','对唱组合':'對唱組合','對唱':'對唱組合','对唱':'對唱組合'};
  const folders=path.split('/').slice(0,-1);
  for(const folder of folders){const compact=folder.replace(/\s/g,'');for(const [field,map] of [['era',eras],['kind',kinds]]){const matches=[...new Set(Object.entries(map).filter(([name])=>compact.includes(name)).map(([,value])=>value))];if(matches.length===1)result[field]=matches[0]}}
@@ -140,5 +141,5 @@ $('export').onclick=()=>{try{$('exportText').value=JSON.stringify({version:1,son
 $('downloadSettings').onclick=()=>{try{if(exportUrl)URL.revokeObjectURL(exportUrl);exportUrl=URL.createObjectURL(new Blob([$('exportText').value],{type:'application/json;charset=utf-8'}));const a=document.createElement('a');a.href=exportUrl;a.download='song-settings.json';document.body.append(a);a.click();a.remove();$('exportMessage').textContent='已送出下載請求，請查看瀏覽器下載清單。若沒有檔案，請按「複製完整設定」。'}catch(err){$('exportMessage').textContent='下載無法啟動，請複製下方完整設定。'}};
 $('copySettings').onclick=async()=>{try{await navigator.clipboard.writeText($('exportText').value);$('exportMessage').textContent='已複製完整設定，可貼到記事本並另存為 song-settings.json。'}catch{const box=$('exportText');box.focus();box.select();$('exportMessage').textContent='請按 Ctrl+C（手機請長按並複製），文字已全選。'}};
 $('load').onclick=()=>$('settingsFile').click();
-$('settingsFile').onchange=async e=>{try{const data=JSON.parse(await e.target.files[0].text());if(data.version!==1||!Array.isArray(data.songs))throw Error();const clean=data.songs.map(s=>{if(typeof s.id!=='string'||typeof s.title!=='string'||typeof s.file!=='string'||!s.marks)throw Error();const marks={};for(const k of Object.keys(labels)){const v=s.marks[k];if(v!==null&&(!Number.isFinite(v)||v<0))throw Error();marks[k]=v}return{id:s.id,file:s.file,title:s.title,artist:typeof s.artist==='string'?s.artist:'',era:['華語經典','華語流行','台語歌'].includes(s.era)?s.era:'',kind:['男歌手','女歌手','團體','抖音神曲','嘻哈金曲','對唱組合'].includes(s.kind)?s.kind:'',sourceGroup:typeof s.sourceGroup==='string'?s.sourceGroup:'',marks,chorusSpoiler:s.chorusSpoiler===true,analysis_status:s.analysis_status==='unverified_candidates'?'unverified_candidates':undefined}});stop();quizQueue=[];quizFinished=false;for(const s of clean){const i=songs.findIndex(x=>x.id===s.id);if(i<0)songs.push(s);else songs[i]=s}persist();await restoreAudio();render();alert('題庫設定已載入。已保存於此裝置的音樂會自動配對；只有尚未保存的歌曲才需要匯入。')}catch{alert('設定檔格式不正確，請選取從本 App 匯出的 JSON。')}e.target.value=''};
+$('settingsFile').onchange=async e=>{try{const data=JSON.parse(await e.target.files[0].text());if(data.version!==1||!Array.isArray(data.songs))throw Error();const clean=data.songs.map(s=>{if(typeof s.id!=='string'||typeof s.title!=='string'||typeof s.file!=='string'||!s.marks)throw Error();const marks={};for(const k of Object.keys(labels)){const v=s.marks[k];if(v!==null&&(!Number.isFinite(v)||v<0))throw Error();marks[k]=v}return{id:s.id,file:s.file,title:s.title,artist:typeof s.artist==='string'?s.artist:'',era:['華語經典','華語流行','華語新歌','台語歌'].includes(s.era)?s.era:'',kind:['男歌手','女歌手','團體','抖音神曲','嘻哈金曲','對唱組合'].includes(s.kind)?s.kind:'',sourceGroup:typeof s.sourceGroup==='string'?s.sourceGroup:'',marks,chorusSpoiler:s.chorusSpoiler===true,analysis_status:s.analysis_status==='unverified_candidates'?'unverified_candidates':undefined}});stop();quizQueue=[];quizFinished=false;for(const s of clean){const i=songs.findIndex(x=>x.id===s.id);if(i<0)songs.push(s);else songs[i]=s}persist();await restoreAudio();render();alert('題庫設定已載入。已保存於此裝置的音樂會自動配對；只有尚未保存的歌曲才需要匯入。')}catch{alert('設定檔格式不正確，請選取從本 App 匯出的 JSON。')}e.target.value=''};
 render();renderTeams();restoreAudio();
