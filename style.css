@@ -2,3 +2,66 @@
 
 #exportText{display:block;width:100%;margin-top:10px;background:#12131b;color:#eee;border:1px solid #56596e;border-radius:8px;padding:12px;font:14px/1.6 monospace;resize:vertical}#exportDialog{max-width:750px}
 .check{display:flex;align-items:center;gap:10px;margin:16px 0;color:#f6f6fc}.check input{display:inline-block;width:auto;margin:0}
+
+/* Mobile host layout */
+@media(max-width:760px){
+  :root{font-size:16px}
+  body{padding-bottom:env(safe-area-inset-bottom);overflow-x:hidden}
+  button,select,input{min-height:48px}
+  header{position:sticky;top:0;z-index:20;padding:calc(12px + env(safe-area-inset-top)) 14px 10px;background:#111219ee;backdrop-filter:blur(14px);gap:10px}
+  header>div{min-width:0}
+  header strong{font-size:19px;white-space:nowrap}
+  header .logo{font-size:24px}
+  #importTop{padding:9px 11px;min-height:42px;white-space:nowrap}
+  header nav{order:3;width:100%;padding:4px;background:#191a22;border-radius:12px}
+  header nav button{min-height:44px;padding:10px 8px;border-radius:9px}
+  main{padding:20px max(12px,env(safe-area-inset-right)) 28px max(12px,env(safe-area-inset-left))}
+  .section-title{margin-bottom:18px;align-items:flex-end}
+  .section-title h1{font-size:27px;line-height:1.15}
+  .section-title>span{font-size:14px;white-space:nowrap}
+  .layout{gap:16px}
+  .panel{padding:18px;border-radius:15px}
+  aside.panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+  aside h2{font-size:19px}
+  aside label{font-size:13px;min-width:0}
+  aside select{margin-top:6px;padding:10px 9px}
+  aside .muted{margin:2px 0 0;font-size:13px;line-height:1.65}
+  #prepareQuiz,#reset{width:100%;padding:13px 8px}
+  .stage{padding:18px 14px 16px;min-height:0;border-radius:15px}
+  .stage-top{font-size:13px}
+  .disc{width:96px;height:96px;margin:24px auto 18px;font-size:52px;box-shadow:0 0 0 8px #ffffff05,0 0 0 16px #ffffff03}
+  .stage h2{font-size:24px;line-height:1.35;margin:0 0 8px;overflow-wrap:anywhere}
+  .stage #status{min-height:48px;margin:6px 0;font-size:14px;line-height:1.6}
+  .progress{margin:18px auto 0}
+  .big{display:block;width:100%;min-width:0;min-height:60px;margin:14px 0 12px;font-size:19px}
+  .stage .controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .stage .controls button{padding:10px 5px;font-size:14px}
+  .footnote{margin-bottom:0}
+  .scores{margin-top:16px}
+  .scores #teams{display:grid;gap:10px;margin:16px 0}
+  .team{display:grid;grid-template-columns:minmax(0,1fr) 48px 38px 48px;gap:7px;width:100%}
+  .team input{width:100%;min-width:0}
+  .team button{padding:8px 5px}
+  #addTeam{width:100%}
+  #library>.section-title{display:block}
+  #library>.section-title .controls{display:grid;grid-template-columns:1fr 1fr;margin-top:18px}
+  #library>.section-title .controls button{width:100%;padding:10px 6px}
+  .analysis-panel .controls{display:grid;grid-template-columns:1fr 1fr}
+  .song{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 8px;padding:15px}
+  .song .info{grid-column:1/-1}
+  .song button{width:100%;min-width:82px}
+  .empty{padding:42px 18px}
+  dialog{max-height:calc(100dvh - 20px);overflow:auto;padding:20px 16px;border-radius:16px}
+  dialog .controls{display:grid;grid-template-columns:1fr 1fr}
+  #exportText{font-size:12px}
+}
+
+@media(max-width:390px){
+  #importTop{font-size:0;width:44px;padding:8px}
+  #importTop::after{content:'＋';font-size:23px}
+  aside.panel{grid-template-columns:1fr}
+  aside h2,aside p{grid-column:auto}
+  .stage .controls{grid-template-columns:1fr}
+  .stage .controls button{width:100%}
+  .section-title h1{font-size:24px}
+}
