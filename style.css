@@ -65,3 +65,22 @@
   .stage .controls button{width:100%}
   .section-title h1{font-size:24px}
 }
+
+/* Full-width game layout: settings above, player below */
+.layout{grid-template-columns:1fr}
+.layout>aside.panel{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;align-items:end}
+.layout>aside h2,.layout>aside p{grid-column:1/-1}
+.layout>aside label{margin:0}
+.layout>aside button{min-height:50px}
+.stage{width:100%;min-height:520px;padding:38px}
+
+@media(max-width:760px){
+  .layout>aside.panel{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .stage{min-height:0;padding:24px 16px}
+  .stage h2{font-size:26px}
+}
+
+@media(max-width:390px){
+  .layout>aside.panel{grid-template-columns:1fr}
+  .layout>aside h2,.layout>aside p{grid-column:1}
+}
