@@ -68,10 +68,10 @@
 
 /* Full-width game layout: settings above, player below */
 .layout{grid-template-columns:1fr}
-.layout>aside.panel{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;align-items:end}
+.layout>aside.panel{display:flex;flex-direction:column;align-items:stretch;gap:16px}
 .layout>aside h2,.layout>aside p{grid-column:1/-1}
-.layout>aside label{margin:0}
-.layout>aside button{min-height:50px}
+.layout>aside label{margin:0;width:100%}
+.layout>aside button{min-height:50px;width:100%}
 .stage{width:100%;min-height:520px;padding:38px}
 
 @media(max-width:760px), (hover:none) and (pointer:coarse){
