@@ -4,7 +4,7 @@
 .check{display:flex;align-items:center;gap:10px;margin:16px 0;color:#f6f6fc}.check input{display:inline-block;width:auto;margin:0}
 
 /* Mobile host layout */
-@media(max-width:760px){
+@media(max-width:760px), (hover:none) and (pointer:coarse){
   :root{font-size:16px}
   body{padding-bottom:env(safe-area-inset-bottom);overflow-x:hidden}
   button,select,input{min-height:48px}
@@ -74,7 +74,7 @@
 .layout>aside button{min-height:50px}
 .stage{width:100%;min-height:520px;padding:38px}
 
-@media(max-width:760px){
+@media(max-width:760px), (hover:none) and (pointer:coarse){
   html{scroll-snap-type:y proximity;scroll-padding-top:118px}
   .layout{gap:18px}
   .layout>aside.panel{display:flex;flex-direction:column;align-items:stretch;gap:10px;min-height:calc(100dvh - 138px);padding:22px 18px;scroll-snap-align:start;scroll-margin-top:118px}
