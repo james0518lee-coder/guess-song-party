@@ -34,6 +34,7 @@ function songPackMatch(s,pack=packName()){
  if(pack==='gold')return s.era==='華語經典';
  if(pack==='new')return s.era==='華語新歌';
  if(pack==='pop')return s.era==='華語流行';
+ if(pack==='taiwanese')return s.era==='台語歌';
  if(pack==='male')return s.kind==='男歌手';
  if(pack==='female')return s.kind==='女歌手';
  if(pack==='group')return s.kind==='團體';
