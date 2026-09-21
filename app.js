@@ -152,5 +152,25 @@ $('export').onclick=()=>{try{$('exportText').value=JSON.stringify({version:1,son
 $('downloadSettings').onclick=()=>{try{if(exportUrl)URL.revokeObjectURL(exportUrl);exportUrl=URL.createObjectURL(new Blob([$('exportText').value],{type:'application/json;charset=utf-8'}));const a=document.createElement('a');a.href=exportUrl;a.download='song-settings.json';document.body.append(a);a.click();a.remove();$('exportMessage').textContent='已送出下載請求，請查看瀏覽器下載清單。若沒有檔案，請按「複製完整設定」。'}catch(err){$('exportMessage').textContent='下載無法啟動，請複製下方完整設定。'}};
 $('copySettings').onclick=async()=>{try{await navigator.clipboard.writeText($('exportText').value);$('exportMessage').textContent='已複製完整設定，可貼到記事本並另存為 song-settings.json。'}catch{const box=$('exportText');box.focus();box.select();$('exportMessage').textContent='請按 Ctrl+C（手機請長按並複製），文字已全選。'}};
 $('load').onclick=()=>$('settingsFile').click();
-$('settingsFile').onchange=async e=>{try{const data=JSON.parse(await e.target.files[0].text());if(data.version!==1||!Array.isArray(data.songs))throw Error();const clean=data.songs.map(s=>{if(typeof s.id!=='string'||typeof s.title!=='string'||typeof s.file!=='string'||!s.marks)throw Error();const marks={};for(const k of Object.keys(labels)){const v=s.marks[k];if(v!==null&&(!Number.isFinite(v)||v<0))throw Error();marks[k]=v}return{id:s.id,file:s.file,title:s.title,artist:typeof s.artist==='string'?s.artist:'',era:['華語經典','華語流行','華語新歌','台語歌'].includes(s.era)?s.era:'',kind:['男歌手','女歌手','團體','抖音神曲','嘻哈金曲','對唱組合'].includes(s.kind)?s.kind:'',sourceGroup:typeof s.sourceGroup==='string'?s.sourceGroup:'',marks,chorusSpoiler:s.chorusSpoiler===true,analysis_status:s.analysis_status==='unverified_candidates'?'unverified_candidates':undefined}});stop();quizQueue=[];quizFinished=false;for(const s of clean){const i=songs.findIndex(x=>x.id===s.id);if(i<0)songs.push(s);else songs[i]=s}persist();await restoreAudio();render();alert('題庫設定已載入。已保存於此裝置的音樂會自動配對；只有尚未保存的歌曲才需要匯入。')}catch{alert('設定檔格式不正確，請選取從本 App 匯出的 JSON。')}e.target.value=''};
+$('settingsFile').onchange=async e=>{
+ try{
+  const data=JSON.parse(await e.target.files[0].text());
+  if(data.version!==1||!Array.isArray(data.songs))throw Error();
+  const clean=data.songs.map(s=>{
+   if(typeof s.id!=='string'||typeof s.title!=='string'||typeof s.file!=='string'||!s.marks)throw Error();
+   const marks={};
+   for(const k of Object.keys(labels)){const v=s.marks[k];if(v!==null&&(!Number.isFinite(v)||v<0))throw Error();marks[k]=v}
+   return{id:s.id,file:s.file,title:s.title,artist:typeof s.artist==='string'?s.artist:'',era:['華語經典','華語流行','華語新歌','台語歌'].includes(s.era)?s.era:'',kind:['男歌手','女歌手','團體','抖音神曲','嘻哈金曲','對唱組合'].includes(s.kind)?s.kind:'',sourceGroup:typeof s.sourceGroup==='string'?s.sourceGroup:'',marks,chorusSpoiler:s.chorusSpoiler===true,analysis_status:s.analysis_status==='unverified_candidates'?'unverified_candidates':undefined}
+  });
+  stop();quizQueue=[];quizFinished=false;current=null;round=0;
+  const nextIds=new Set(clean.map(s=>s.id));
+  for(const [id,url] of urls){if(!nextIds.has(id)){URL.revokeObjectURL(url);urls.delete(id)}}
+  songs=clean;
+  playedHistory=new Set([...playedHistory].filter(id=>nextIds.has(id)));
+  persist();persistPlayed();
+  await restoreAudio();render();
+  alert('題庫設定已完整更新，共載入 '+songs.length+' 首。手機內已保存的音樂會自動配對。');
+ }catch{alert('設定檔格式不正確，請選取從本 App 匯出的 JSON。')}
+ e.target.value='';
+};
 render();renderTeams();restoreAudio();
