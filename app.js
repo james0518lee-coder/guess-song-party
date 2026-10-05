@@ -48,11 +48,6 @@ function songPackMatch(s,pack=packName()){
  if(pack==='duet')return s.kind==='對唱組合';
  return true;
 }
-function groupKey(s,pack=packName()){
- if(pack==='random')return s.kind||s.era||s.artist||'未分類';
- if(pack==='gold'||pack==='pop'||pack==='new')return s.kind||s.artist||'未分類';
- return s.artist||s.era||'未分類';
-}
 function availableSongs(pack=packName()){return songs.filter(s=>!playedHistory.has(s.id)&&urls.has(s.id)&&songPackMatch(s,pack)&&validMarks(s).length)}
 function shuffle(list){const a=[...list];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function cappedWeightedPick(list,total){
@@ -67,21 +62,23 @@ function cappedWeightedPick(list,total){
  while(picked.length<total&&pool.length){let sum=pool.reduce((n,x)=>n+x.weight,0),r=Math.random()*sum,index=pool.length-1;for(let i=0;i<pool.length;i++){r-=pool[i].weight;if(r<=0){index=i;break}}picked.push(pool.splice(index,1)[0].song)}
  return picked;
 }
+function proportionalCappedPick(list,total){
+ // 每首歌機率相同；歌手數量夠多時，單一歌手／團體合計最高 8%，超出的比例由其餘歌曲平均分攤。
+ const buckets=new Map();
+ for(const song of list){const key=artistOf(song)||'其他';if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push(song)}
+ const size=list.length,capOn=buckets.size>=13,pool=[];
+ const isCapped=(key,items)=>capOn&&key!=='其他'&&items.length/size>.08;
+ let cappedCount=0,freeShare=0;for(const [key,items] of buckets){if(isCapped(key,items))cappedCount++;else freeShare+=items.length/size}
+ const scale=cappedCount&&freeShare>0?.08*freeShare/(1-.08*cappedCount):0;
+ for(const [key,items] of buckets){const weight=scale&&isCapped(key,items)?scale/(items.length/size):1;for(const song of items)pool.push({song,weight})}
+ const picked=[];
+ while(picked.length<total&&pool.length){let r=Math.random()*pool.reduce((n,x)=>n+x.weight,0),index=pool.length-1;for(let i=0;i<pool.length;i++){r-=pool[i].weight;if(r<=0){index=i;break}}picked.push(pool.splice(index,1)[0].song)}
+ return picked;
+}
 function balancedPick(list,total,pack=packName()){
  if(['male','female','group'].includes(pack))return cappedWeightedPick(list,total);
  if(pack==='hiphop')return shuffle(list).slice(0,total);
- const buckets=new Map();
- for(const song of shuffle(list)){const key=groupKey(song,pack);if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push(song)}
- const groups=shuffle([...buckets.entries()].map(([key,items])=>({key,items})));
- const picked=[];
- while(picked.length<total&&groups.some(g=>g.items.length)){
-  for(const group of groups){
-   if(picked.length>=total)break;
-   const song=group.items.shift();
-   if(song)picked.push(song);
-  }
- }
- return picked;
+ return proportionalCappedPick(list,total);
 }
 function buildQuiz(){
  stop();round=0;current=null;quizFinished=false;
@@ -98,7 +95,7 @@ function buildQuiz(){
  if(!pool.length){$('status').textContent=playedHistory.size?'這個題庫包目前沒有未播放歌曲。可改選其他題庫，或按「重置全部播放紀錄」。':'這個題庫包沒有可播放歌曲，請先匯入音樂或載入設定。'}
  else if(pool.length<target){$('status').textContent='可用歌曲只有 '+pool.length+' 首，已全部排入且不重複。'}
  else if(cycleRestarted){$('status').textContent='所有可播放歌曲已完成一輪，播放紀錄已自動重置；按「下一題並播放」開始新一輪。'}
- else {$('status').textContent=['male','female','group'].includes(pack)?'單一歌手／團體機率最高 8%，超出比例已加到「其他」；按「下一題並播放」開始。':pack==='hiphop'?'已從完整嘻哈歌曲池隨機選題；按「下一題並播放」開始。':'已平均分配題目；按「下一題並播放」開始。'}
+ else {$('status').textContent=['male','female','group'].includes(pack)?'單一歌手／團體機率最高 8%，超出比例已加到「其他」；按「下一題並播放」開始。':pack==='hiphop'?'已從完整嘻哈歌曲池隨機選題；按「下一題並播放」開始。':'已依歌曲數量隨機選題，單一歌手／團體最高 8%；按「下一題並播放」開始。'}
  counts();
 }
 function counts(){
@@ -151,7 +148,17 @@ $('draw').onclick=()=>{if(quizFinished){$('status').textContent='題庫已播放
 $('replay').onclick=play;$('stop').onclick=()=>{stop();$('status').textContent='已暫停，按「再聽一次」重播片段。'};$('reveal').onclick=()=>{if(current){$('answer').textContent=current.song.title+' — '+(artistOf(current.song)||'尚未填寫歌手');$('status').textContent=artistOf(current.song)||'尚未填寫歌手'}};
 $('reset').onclick=buildQuizAndShowPlayer;for(const id of ['pack','questionCount','segment'])$(id).onchange=()=>{quizQueue=[];quizFinished=false;current=null;round=0;$('draw').disabled=false;$('round').textContent='第 0 回合';$('answer').textContent='選好題庫後開始比賽';$('status').textContent='按「建立比賽題庫」先排題，再開始播放。';$('replay').disabled=$('reveal').disabled=true;counts()};
 $('resetHistory').onclick=()=>{if(!confirm('確定清除所有歌曲的播放紀錄？清除後，之前播過的歌曲會再次出現。'))return;stop();playedHistory.clear();persistPlayed();quizQueue=[];quizFinished=false;current=null;round=0;buildQuiz();$('status').textContent='全部播放紀錄已重置，所有歌曲都可以再次出題。'};
-let teams=[{name:'第 1 隊',score:0},{name:'第 2 隊',score:0}];function renderTeams(){$('teams').replaceChildren();teams.forEach(t=>{const el=document.createElement('div');el.className='team';const n=document.createElement('input');n.value=t.name;n.setAttribute('aria-label','隊伍名稱');n.onchange=()=>t.name=n.value;const score=document.createElement('strong');score.textContent=t.score;for(const d of [-1,1]){const b=document.createElement('button');b.textContent=d===1?'＋':'−';b.setAttribute('aria-label',d===1?'加一分':'減一分');b.onclick=()=>{t.score+=d;score.textContent=t.score};if(d===-1)el.append(n,b,score);else el.append(b)}$('teams').append(el)})}$('addTeam').onclick=()=>{teams.push({name:'第 '+(teams.length+1)+' 隊',score:0});renderTeams()};
+let teams=[{name:'第 1 隊',score:0},{name:'第 2 隊',score:0}];
+try{const saved=JSON.parse(localStorage.getItem('guessTeams')||'null');if(Array.isArray(saved)&&saved.length)teams=saved.filter(x=>x&&typeof x.name==='string').map(x=>({name:x.name,score:Number.isFinite(x.score)?x.score:0}))}catch{}
+if(!teams.length)teams=[{name:'第 1 隊',score:0}];
+function saveTeams(){try{localStorage.setItem('guessTeams',JSON.stringify(teams))}catch{}}
+function renderTeams(){$('teams').replaceChildren();teams.forEach(t=>{const el=document.createElement('div');el.className='team';const n=document.createElement('input');n.value=t.name;n.setAttribute('aria-label','隊伍名稱');n.onchange=()=>{t.name=n.value;saveTeams()};const score=document.createElement('strong');score.textContent=t.score;for(const d of [-1,1]){const b=document.createElement('button');b.textContent=d===1?'＋':'−';b.setAttribute('aria-label',d===1?'加一分':'減一分');b.onclick=()=>{t.score+=d;score.textContent=t.score;saveTeams()};if(d===-1)el.append(n,b,score);else el.append(b)}$('teams').append(el)});if($('removeTeam'))$('removeTeam').disabled=teams.length<=1}
+$('addTeam').onclick=()=>{teams.push({name:'第 '+(teams.length+1)+' 隊',score:0});saveTeams();renderTeams()};
+if($('removeTeam'))$('removeTeam').onclick=()=>{if(teams.length<=1)return;const last=teams[teams.length-1];if(!confirm('移除「'+last.name+'」（目前 '+last.score+' 分）？'))return;teams.pop();saveTeams();renderTeams()};
+if($('resetScores'))$('resetScores').onclick=()=>{if(!confirm('把所有隊伍的分數歸零？'))return;teams.forEach(t=>t.score=0);saveTeams();renderTeams()};
+// ---- 清除不在題庫清單內、但仍存在此裝置的音檔 ----
+async function cleanOrphanAudio(){const say=m=>$('importStatus').textContent=m;try{const db=await audioDb();const keys=await new Promise((resolve,reject)=>{const r=db.transaction('files').objectStore('files').getAllKeys();r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});const ids=new Set(songs.map(s=>s.id)),orphans=keys.filter(k=>!ids.has(k));if(!orphans.length){db.close();say('沒有未使用的音檔，不需要清除。');return}if(!confirm('此裝置有 '+orphans.length+' 個音檔不在目前的題庫清單內。要從瀏覽器儲存空間刪除嗎？（不影響手機裡原本的音樂檔）')){db.close();return}await new Promise((resolve,reject)=>{const tx=db.transaction('files','readwrite');for(const k of orphans)tx.objectStore('files').delete(k);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error)});db.close();say('已清除 '+orphans.length+' 個未使用的音檔。')}catch{say('清除失敗，請稍後再試。')}}
+if($('cleanAudio'))$('cleanAudio').onclick=cleanOrphanAudio;
 let exportUrl=null;
 $('export').onclick=()=>{try{$('exportText').value=JSON.stringify({version:1,songs},null,2);$('exportCount').textContent='共 '+songs.length+' 首，包含歌名、分類、歌手與段落設定，不包含音樂檔。';$('exportMessage').textContent='按「下載 JSON 檔」儲存；若未出現下載，可改用「複製完整設定」。';$('exportDialog').showModal()}catch(err){alert('無法開啟匯出視窗：'+err.message)}};
 $('downloadSettings').onclick=()=>{try{if(exportUrl)URL.revokeObjectURL(exportUrl);exportUrl=URL.createObjectURL(new Blob([$('exportText').value],{type:'application/json;charset=utf-8'}));const a=document.createElement('a');a.href=exportUrl;a.download='song-settings.json';document.body.append(a);a.click();a.remove();$('exportMessage').textContent='已送出下載請求，請查看瀏覽器下載清單。若沒有檔案，請按「複製完整設定」。'}catch(err){$('exportMessage').textContent='下載無法啟動，請複製下方完整設定。'}};
